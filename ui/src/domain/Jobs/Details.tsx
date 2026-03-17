@@ -19,7 +19,9 @@ import { ORGANIZATION_ARCHIVE } from "../../config/actionTypes";
 import axiosInstance, { axiosClient } from "../../config/axiosConfig";
 import { useAbortController, usePolling } from "../../hooks";
 import { Job, JobStep } from "../types";
+import { PlanOutput } from "./PlanOutput";
 import { TerminalOutput } from "./TerminalOutput";
+import { parseTerraformPlanOutput } from "./terraformPlanParser";
 
 type Props = {
   jobId: string;
@@ -168,6 +170,8 @@ export const DetailsJob = ({ jobId }: Props) => {
         message.error("Could not discard: " + error.response.data.errors[0].detail);
       });
   };
+
+  const isTerraformPlanStep = (step: JobStep) => step.name.toLowerCase().includes("plan");
 
   const sortbyName = (a: JobStep, b: JobStep) => {
     if (a.stepNumber < b.stepNumber) return -1;
@@ -432,11 +436,34 @@ export const DetailsJob = ({ jobId }: Props) => {
                               >
                                 <Radio.Group onChange={onChange} value={uiType} size="small">
                                   <Radio.Button value="structured">Structured</Radio.Button>
-                                  <Radio.Button value="console">Console</Radio.Button>
+                                  <Radio.Button value="console">Raw logs</Radio.Button>
                                 </Radio.Group>
                               </div>
                               {uiType === "structured" ? (
                                 <div>{parse(uiTemplates[item.stepNumber])}</div>
+                              ) : (
+                                <TerminalOutput
+                                  outputLog={item.outputLog}
+                                  stepName={item.name}
+                                  isRunning={item.status === "running"}
+                                />
+                              )}
+                            </>
+                          ) : isTerraformPlanStep(item) && item.status !== "running" && parseTerraformPlanOutput(item.outputLog) ? (
+                            <>
+                              <div
+                                style={{
+                                  textAlign: "right",
+                                  padding: "5px",
+                                }}
+                              >
+                                <Radio.Group onChange={onChange} value={uiType} size="small">
+                                  <Radio.Button value="structured">Structured</Radio.Button>
+                                  <Radio.Button value="console">Raw logs</Radio.Button>
+                                </Radio.Group>
+                              </div>
+                              {uiType === "structured" ? (
+                                <PlanOutput outputLog={item.outputLog} />
                               ) : (
                                 <TerminalOutput
                                   outputLog={item.outputLog}
