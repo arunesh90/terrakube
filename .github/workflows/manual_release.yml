@@ -107,17 +107,17 @@ jobs:
             type: ui
           - component: api
             module: api
-            local_image: terrakube-api-server
+            local_image: api-server
             image_name: terrakube-api-server
             type: maven
           - component: registry
             module: registry
-            local_image: terrakube-open-registry
+            local_image: open-registry
             image_name: terrakube-open-registry
             type: maven
           - component: executor
             module: executor
-            local_image: terrakube-executor
+            local_image: executor
             image_name: terrakube-executor
             type: executor
     env:
