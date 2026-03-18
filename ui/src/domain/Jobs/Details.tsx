@@ -20,6 +20,7 @@ import axiosInstance, { axiosClient } from "../../config/axiosConfig";
 import { useAbortController, usePolling } from "../../hooks";
 import { Job, JobStep } from "../types";
 import { TerminalOutput } from "./TerminalOutput";
+import { StructuredPlanOutput } from "./StructuredPlanOutput";
 
 type Props = {
   jobId: string;
@@ -35,7 +36,8 @@ export const DetailsJob = ({ jobId }: Props) => {
   const [workspaceVcsName, setWorkspaceVcsName] = useState<String>();
   const [steps, setSteps] = useState<JobStep[]>([]);
   const [uiType, setUIType] = useState("structured");
-  const [uiTemplates, setUITemplates] = useState<Record<number, string>>({});
+  const [uiTemplates, setUITemplates] = useState<Record<string, string>>({});
+  const [planStructuredOutput, setPlanStructuredOutput] = useState<Record<string, any[]>>({});
   const { getSignal: getJobSignal, abort: abortJobRequests } = useAbortController();
   const { getSignal: getContextSignal, abort: abortContextRequests } = useAbortController();
   const jobRequestRef = useRef(0);
@@ -270,6 +272,9 @@ export const DetailsJob = ({ jobId }: Props) => {
       if (response?.data?.terrakubeUI) {
         setUITemplates(response?.data?.terrakubeUI);
       }
+      if (response?.data?.planStructuredOutput) {
+        setPlanStructuredOutput(response?.data?.planStructuredOutput);
+      }
     } catch (error) {
       if (isAbortError(error)) return;
     }
@@ -422,7 +427,7 @@ export const DetailsJob = ({ jobId }: Props) => {
                       ),
                       children: (
                         <>
-                          {uiTemplates.hasOwnProperty(item.stepNumber) ? (
+                          {(uiTemplates.hasOwnProperty(item.id) || uiTemplates.hasOwnProperty(String(item.stepNumber))) ? (
                             <>
                               <div
                                 style={{
@@ -436,7 +441,11 @@ export const DetailsJob = ({ jobId }: Props) => {
                                 </Radio.Group>
                               </div>
                               {uiType === "structured" ? (
-                                <div>{parse(uiTemplates[item.stepNumber])}</div>
+                                planStructuredOutput[item.id] ? (
+                                  <StructuredPlanOutput changes={planStructuredOutput[item.id]} />
+                                ) : (
+                                  <div>{parse(uiTemplates[item.id] || uiTemplates[String(item.stepNumber)])}</div>
+                                )
                               ) : (
                                 <TerminalOutput
                                   outputLog={item.outputLog}

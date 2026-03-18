@@ -46,13 +46,15 @@ public class TerraformExecutorServiceImpl implements TerraformExecutor {
     boolean enableColorOutput;
     ProcessLogs logsService;
     int redisTimeout;
+    PlanStructuredOutputService planStructuredOutputService;
 
-    public TerraformExecutorServiceImpl(TerraformClient terraformClient, TerraformState terraformState, ScriptEngineService scriptEngineService, ProcessLogs logsService, @Value("${io.terrakube.terraform.flags.enableColor}") boolean enableColorOutput, RedisTemplate redisTemplate, @Value("${io.terrakube.executor.redis.timeout}") int redisTimeout) {
+    public TerraformExecutorServiceImpl(TerraformClient terraformClient, TerraformState terraformState, ScriptEngineService scriptEngineService, ProcessLogs logsService, PlanStructuredOutputService planStructuredOutputService, @Value("${io.terrakube.terraform.flags.enableColor}") boolean enableColorOutput, RedisTemplate redisTemplate, @Value("${io.terrakube.executor.redis.timeout}") int redisTimeout) {
         this.terraformClient = terraformClient;
         this.terraformState = terraformState;
         this.scriptEngineService = scriptEngineService;
         this.redisTemplate = redisTemplate;
         this.logsService = logsService;
+        this.planStructuredOutputService = planStructuredOutputService;
         this.enableColorOutput = enableColorOutput;
         this.redisTimeout = redisTimeout;
     }
@@ -176,6 +178,9 @@ public class TerraformExecutorServiceImpl implements TerraformExecutor {
             result.setPlanFile(executionPlan ? terraformState.saveTerraformPlan(terraformJob.getOrganizationId(),
                     terraformJob.getWorkspaceId(), terraformJob.getJobId(), terraformJob.getStepId(), terraformWorkingDir)
                     : "");
+            if (executionPlan) {
+                planStructuredOutputService.publishPlanSummary(terraformJob, terraformWorkingDir);
+            }
             result.setPlan(true);
             result.setExitCode(exitCode);
         } catch (IOException | ExecutionException | InterruptedException exception) {
