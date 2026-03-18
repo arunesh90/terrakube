@@ -21,23 +21,26 @@ import { useAbortController, usePolling } from "../../hooks";
 import { Job, JobStep } from "../types";
 import { TerminalOutput } from "./TerminalOutput";
 import { StructuredPlanOutput } from "./StructuredPlanOutput";
+import { StructuredPlanOutputByStep, normalizeStructuredPlanOutput, normalizeUITemplates } from "./structuredPlan";
 
 type Props = {
   jobId: string;
 };
 
+const TERMINAL_JOB_STATUSES = new Set(["completed", "noChanges", "failed", "cancelled", "rejected", "notExecuted"]);
+
 export const DetailsJob = ({ jobId }: Props) => {
   const organizationId = sessionStorage.getItem(ORGANIZATION_ARCHIVE);
   const [loading, setLoading] = useState(false);
   const [job, setJob] = useState<AxiosResponse<Job>>();
-  const [workspaceSource, setWorkspaceSource] = useState<String>();
-  const [workspaceDefaultBranch, setWorkspaceDefaultBranch] = useState<String>();
-  const [workspaceVcsId, setWorkspaceVcsId] = useState<String>();
-  const [workspaceVcsName, setWorkspaceVcsName] = useState<String>();
+  const [workspaceSource, setWorkspaceSource] = useState<string>();
+  const [workspaceDefaultBranch, setWorkspaceDefaultBranch] = useState<string>();
+  const [workspaceVcsId, setWorkspaceVcsId] = useState<string>();
+  const [workspaceVcsName, setWorkspaceVcsName] = useState<string>();
   const [steps, setSteps] = useState<JobStep[]>([]);
   const [uiType, setUIType] = useState("structured");
   const [uiTemplates, setUITemplates] = useState<Record<string, string>>({});
-  const [planStructuredOutput, setPlanStructuredOutput] = useState<Record<string, any[]>>({});
+  const [planStructuredOutput, setPlanStructuredOutput] = useState<StructuredPlanOutputByStep>({});
   const { getSignal: getJobSignal, abort: abortJobRequests } = useAbortController();
   const { getSignal: getContextSignal, abort: abortContextRequests } = useAbortController();
   const jobRequestRef = useRef(0);
@@ -46,6 +49,14 @@ export const DetailsJob = ({ jobId }: Props) => {
 
   const isAbortError = (error: unknown) => {
     return error instanceof Error && (error.name === "AbortError" || error.name === "CanceledError");
+  };
+
+  const isTerminalJobStatus = (status?: string) => {
+    if (!status) {
+      return false;
+    }
+
+    return TERMINAL_JOB_STATUSES.has(status);
   };
 
   const outputLog = async (output: string | undefined, status: string, signal: AbortSignal) => {
@@ -74,6 +85,64 @@ export const DetailsJob = ({ jobId }: Props) => {
 
   const onChange = (e: RadioChangeEvent) => {
     setUIType(e.target.value);
+  };
+
+  const renderConsoleOutput = (item: JobStep) => {
+    return <TerminalOutput outputLog={item.outputLog} stepName={item.name} isRunning={item.status === "running"} />;
+  };
+
+  const renderStepContent = (item: JobStep) => {
+    const template = uiTemplates[item.id] || uiTemplates[String(item.stepNumber)];
+    const structuredChanges = planStructuredOutput[item.id] || planStructuredOutput[String(item.stepNumber)];
+    const hasStructuredView = Boolean(template) || Boolean(structuredChanges);
+
+    if (!hasStructuredView) {
+      return renderConsoleOutput(item);
+    }
+
+    if (uiType !== "structured") {
+      return (
+        <>
+          <div
+            style={{
+              textAlign: "right",
+              padding: "5px",
+            }}
+          >
+            <Radio.Group onChange={onChange} value={uiType} size="small">
+              <Radio.Button value="structured">Structured</Radio.Button>
+              <Radio.Button value="console">Console</Radio.Button>
+            </Radio.Group>
+          </div>
+          {renderConsoleOutput(item)}
+        </>
+      );
+    }
+
+    let structuredContent = renderConsoleOutput(item);
+
+    if (structuredChanges) {
+      structuredContent = <StructuredPlanOutput changes={structuredChanges} />;
+    } else if (template) {
+      structuredContent = <div>{parse(template)}</div>;
+    }
+
+    return (
+      <>
+        <div
+          style={{
+            textAlign: "right",
+            padding: "5px",
+          }}
+        >
+          <Radio.Group onChange={onChange} value={uiType} size="small">
+            <Radio.Button value="structured">Structured</Radio.Button>
+            <Radio.Button value="console">Console</Radio.Button>
+          </Radio.Group>
+        </div>
+        {structuredContent}
+      </>
+    );
   };
 
   const handleCancel = () => {
@@ -191,7 +260,9 @@ export const DetailsJob = ({ jobId }: Props) => {
       const response = await axiosInstance.get(`organization/${organizationId}/job/${jobId}?include=step,workspace`, {
         signal,
       });
-      if (requestId !== jobRequestRef.current) return;
+      if (requestId !== jobRequestRef.current) {
+        return;
+      }
 
       setJob(response.data);
 
@@ -241,7 +312,9 @@ export const DetailsJob = ({ jobId }: Props) => {
         : Promise.resolve(undefined);
 
       const [jobSteps, workspaceData] = await Promise.all([stepsPromise, workspacePromise]);
-      if (requestId !== jobRequestRef.current) return;
+      if (requestId !== jobRequestRef.current) {
+        return;
+      }
 
       if (workspaceData) {
         setWorkspaceSource(workspaceData.source);
@@ -268,13 +341,11 @@ export const DetailsJob = ({ jobId }: Props) => {
 
     try {
       const response = await axiosInstance.get(`${api.protocol}//${api.host}/context/v1/${jobId}`, { signal });
-      if (requestId !== contextRequestRef.current) return;
-      if (response?.data?.terrakubeUI) {
-        setUITemplates(response?.data?.terrakubeUI);
+      if (requestId !== contextRequestRef.current) {
+        return;
       }
-      if (response?.data?.planStructuredOutput) {
-        setPlanStructuredOutput(response?.data?.planStructuredOutput);
-      }
+      setUITemplates(normalizeUITemplates(response?.data?.terrakubeUI));
+      setPlanStructuredOutput(normalizeStructuredPlanOutput(response?.data?.planStructuredOutput));
     } catch (error) {
       if (isAbortError(error)) return;
     }
@@ -294,7 +365,7 @@ export const DetailsJob = ({ jobId }: Props) => {
     },
     {
       interval: 5000,
-      enabled: Boolean(jobId),
+      enabled: Boolean(jobId) && !isTerminalJobStatus(job?.data?.attributes.status),
       immediate: true,
     }
   );
@@ -410,63 +481,25 @@ export const DetailsJob = ({ jobId }: Props) => {
           />
           {steps.length > 0 ? (
             steps.map((item) => (
-              <>
-                <Collapse
-                  style={{ width: "100%" }}
-                  defaultActiveKey={item.status === "running" ? ["2"] : []}
-                  items={[
-                    {
-                      key: "2",
-                      label: (
-                        <span>
-                          {getIconStatus(item)}
-                          <h3 style={{ display: "inline" }}>
-                            &nbsp; {item.name} {item.status}
-                          </h3>
-                        </span>
-                      ),
-                      children: (
-                        <>
-                          {(uiTemplates.hasOwnProperty(item.id) || uiTemplates.hasOwnProperty(String(item.stepNumber))) ? (
-                            <>
-                              <div
-                                style={{
-                                  textAlign: "right",
-                                  padding: "5px",
-                                }}
-                              >
-                                <Radio.Group onChange={onChange} value={uiType} size="small">
-                                  <Radio.Button value="structured">Structured</Radio.Button>
-                                  <Radio.Button value="console">Console</Radio.Button>
-                                </Radio.Group>
-                              </div>
-                              {uiType === "structured" ? (
-                                planStructuredOutput[item.id] ? (
-                                  <StructuredPlanOutput changes={planStructuredOutput[item.id]} />
-                                ) : (
-                                  <div>{parse(uiTemplates[item.id] || uiTemplates[String(item.stepNumber)])}</div>
-                                )
-                              ) : (
-                                <TerminalOutput
-                                  outputLog={item.outputLog}
-                                  stepName={item.name}
-                                  isRunning={item.status === "running"}
-                                />
-                              )}
-                            </>
-                          ) : (
-                            <TerminalOutput
-                              outputLog={item.outputLog}
-                              stepName={item.name}
-                              isRunning={item.status === "running"}
-                            />
-                          )}
-                        </>
-                      ),
-                    },
-                  ]}
-                />
-              </>
+              <Collapse
+                key={item.id}
+                style={{ width: "100%" }}
+                defaultActiveKey={item.status === "running" ? ["2"] : []}
+                items={[
+                  {
+                    key: "2",
+                    label: (
+                      <span>
+                        {getIconStatus(item)}
+                        <h3 style={{ display: "inline" }}>
+                          &nbsp; {item.name} {item.status}
+                        </h3>
+                      </span>
+                    ),
+                    children: renderStepContent(item),
+                  },
+                ]}
+              />
             ))
           ) : (
             <span />

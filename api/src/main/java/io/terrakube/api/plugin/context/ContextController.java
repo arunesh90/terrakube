@@ -15,35 +15,51 @@ import io.terrakube.api.rs.job.Job;
 import io.terrakube.api.rs.job.JobStatus;
 
 import java.io.IOException;
+import java.util.Optional;
 
 @Slf4j
 @RestController
 @RequestMapping("/context/v1")
 @AllArgsConstructor
 public class ContextController {
-    StorageTypeService storageTypeService;
+    private final StorageTypeService storageTypeService;
 
-    JobRepository jobRepository;
+    private final JobRepository jobRepository;
+
+    private final ObjectMapper objectMapper;
 
     @GetMapping(value = "/{jobId}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> getContext(@PathVariable("jobId") int jobId) throws IOException {
         String context = storageTypeService.getContext(jobId);
+        if (context == null || context.isBlank()) {
+            context = "{}";
+        }
         return new ResponseEntity<>(context, HttpStatus.OK);
     }
 
     @PostMapping(value = "/{jobId}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional
     public ResponseEntity<String> saveContext(@PathVariable("jobId") int jobId, @RequestBody String context) throws IOException {
-        String savedContext = "{}";
         try {
-            new ObjectMapper().readTree(context);
-            Job job = jobRepository.getReferenceById(jobId);
-            if (job !=null && job.getStatus().equals(JobStatus.running))
-                savedContext = storageTypeService.saveContext(jobId, context);
+            objectMapper.readTree(context);
         } catch (JacksonException e) {
-            log.error(e.getMessage());
+            log.warn("Invalid context payload for job {}", jobId, e);
+            return new ResponseEntity<>("{}", HttpStatus.BAD_REQUEST);
         }
 
+        Optional<Job> jobOptional = jobRepository.findById(jobId);
+        if (jobOptional.isEmpty()) {
+            log.warn("Cannot save context for missing job {}", jobId);
+            return new ResponseEntity<>("{}", HttpStatus.NOT_FOUND);
+        }
+
+        Job job = jobOptional.get();
+        if (!JobStatus.running.equals(job.getStatus())) {
+            log.warn("Cannot save context for job {} with status {}", jobId, job.getStatus());
+            return new ResponseEntity<>("{}", HttpStatus.CONFLICT);
+        }
+
+        String savedContext = storageTypeService.saveContext(jobId, context);
         return new ResponseEntity<>(savedContext, HttpStatus.OK);
     }
 }
