@@ -1,21 +1,30 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
 import getUserFromStorage from "./authUser";
 
+type RuntimeEnv = Window["_env_"] & { REACT_APP_TERRAKUBE_SEND_COOKIES?: string };
+
+const runtimeEnv = window._env_ as RuntimeEnv;
+const sendCookiesWithRequests = runtimeEnv.REACT_APP_TERRAKUBE_SEND_COOKIES?.trim().toLowerCase() === "true";
+
 const axiosInstance = axios.create({
   baseURL: window._env_.REACT_APP_TERRAKUBE_API_URL,
+  withCredentials: sendCookiesWithRequests,
 });
 
 export const axiosClient = axios.create({
   baseURL: window._env_.REACT_APP_TERRAKUBE_API_URL,
+  withCredentials: sendCookiesWithRequests,
 });
 
 export const axiosGraphQL = axios.create({
   baseURL: new URL(window._env_.REACT_APP_TERRAKUBE_API_URL).origin + "/graphql/api/v1",
+  withCredentials: sendCookiesWithRequests,
 });
 
 // Axios instance for Terraform Registry proxy (without /api/v1 prefix)
 export const axiosRegistry = axios.create({
   baseURL: new URL(window._env_.REACT_APP_TERRAKUBE_API_URL).origin,
+  withCredentials: sendCookiesWithRequests,
 });
 
 // Shared request interceptor that attaches the Bearer token
