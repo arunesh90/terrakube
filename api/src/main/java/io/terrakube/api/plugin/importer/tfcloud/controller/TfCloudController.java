@@ -37,6 +37,20 @@ public class TfCloudController {
 
     }
 
+    @GetMapping("/workspaces/{workspaceId}/varsets")
+    public ResponseEntity<?> getWorkspaceVarsets(@RequestHeader("X-TFC-Url") String apiUrl,
+            @RequestHeader("X-TFC-Token") String apiToken,
+            @PathVariable String workspaceId) {
+        log.info("Allowed URLs getWorkspaceVarsets: {}", allowedUrls);
+        String[] listUrls = this.allowedUrls.split(",");
+        for (String url : listUrls) {
+            if (apiUrl.startsWith(url)) {
+                return ResponseEntity.ok(service.getWorkspaceVarsets(apiToken, apiUrl, workspaceId));
+            }
+        }
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(INVALID_URL_MESSAGE);
+    }
+
     @PostMapping("/workspaces")
     public ResponseEntity<?> importWorkspaces(@RequestHeader("X-TFC-Url") String apiUrl,@RequestHeader("X-TFC-Token") String apiToken,@RequestBody WorkspaceImportRequest request) {
         log.info("Allowed URLs Import Workspaces: {}", allowedUrls);

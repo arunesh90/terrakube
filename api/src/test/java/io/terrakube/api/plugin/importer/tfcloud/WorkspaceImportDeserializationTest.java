@@ -50,4 +50,36 @@ class WorkspaceImportDeserializationTest {
         assertEquals("release/prod", workspace.getAttributes().getVcsRepo().getBranch());
         assertEquals("envs/prod", workspace.getAttributes().getWorkingDirectory());
     }
+
+    @Test
+    void shouldDeserializeWorkspaceVarsets() throws Exception {
+        String payload = """
+                {
+                  "data": [
+                    {
+                      "id": "varset-123",
+                      "type": "varsets",
+                      "attributes": {
+                        "name": "shared-prod"
+                      }
+                    }
+                  ],
+                  "meta": {
+                    "pagination": {
+                      "current-page": 1,
+                      "next-page": null,
+                      "prev-page": null,
+                      "total-pages": 1,
+                      "total-count": 1
+                    }
+                  }
+                }
+                """;
+
+        VarsetListResponse response = objectMapper.readValue(payload, VarsetListResponse.class);
+        VarsetListResponse.VarsetData varset = response.getData().getFirst();
+
+        assertEquals("varset-123", varset.getId());
+        assertEquals("shared-prod", varset.getAttributes().getName());
+    }
 }

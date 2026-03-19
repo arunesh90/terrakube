@@ -1,4 +1,7 @@
 package io.terrakube.api.plugin.importer.tfcloud;
+
+import java.util.List;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,4 +19,5 @@ public class WorkspaceImportRequest {
     private String source;
     private String description;
     private String executionMode;
+    private List<String> variableCollectionIds;
 }
