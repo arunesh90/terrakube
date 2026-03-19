@@ -109,6 +109,7 @@ describe("StructuredPlanOutput", () => {
 
     expect(screen.getByText("variables")).toBeInTheDocument();
     expect(screen.getByText("[0] CONSUMER_COUNT")).toBeInTheDocument();
+    expect(screen.queryByText(/\[1\] UNCHANGED/i)).not.toBeInTheDocument();
     expect(screen.queryByText('"CONSUMER_COUNT"')).not.toBeInTheDocument();
     expect(screen.getByText('"1"')).toBeInTheDocument();
     expect(screen.getByText('"2"')).toBeInTheDocument();

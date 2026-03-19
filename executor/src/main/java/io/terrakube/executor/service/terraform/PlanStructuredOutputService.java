@@ -114,10 +114,12 @@ public class PlanStructuredOutputService {
             entry.put("resourceName", change.get("name"));
             entry.put("actions", actions);
             entry.put("action", action);
-            entry.put("before", changeBlock.get("before"));
-            entry.put("beforeSensitive", changeBlock.get("before_sensitive"));
-            entry.put("after", changeBlock.get("after"));
-            entry.put("afterSensitive", changeBlock.get("after_sensitive"));
+            Object beforeSensitive = changeBlock.get("before_sensitive");
+            Object afterSensitive = changeBlock.get("after_sensitive");
+            entry.put("before", sanitizeSensitiveValues(changeBlock.get("before"), beforeSensitive));
+            entry.put("beforeSensitive", beforeSensitive);
+            entry.put("after", sanitizeSensitiveValues(changeBlock.get("after"), afterSensitive));
+            entry.put("afterSensitive", afterSensitive);
             entry.put("afterUnknown", changeBlock.get("after_unknown"));
             result.add(entry);
         }
@@ -313,5 +315,35 @@ public class PlanStructuredOutputService {
         }
 
         return "unknown";
+    }
+
+    Object sanitizeSensitiveValues(Object value, Object sensitiveMetadata) {
+        if (Boolean.TRUE.equals(sensitiveMetadata)) {
+            return null;
+        }
+
+        if (value instanceof Map<?, ?> valueMap) {
+            Map<String, Object> sanitizedMap = new HashMap<>();
+            Map<?, ?> sensitiveMap = sensitiveMetadata instanceof Map<?, ?> ? (Map<?, ?>) sensitiveMetadata : Map.of();
+
+            valueMap.forEach((key, entryValue) -> sanitizedMap.put(
+                    String.valueOf(key),
+                    sanitizeSensitiveValues(entryValue, sensitiveMap.get(key))));
+            return sanitizedMap;
+        }
+
+        if (value instanceof List<?> valueList) {
+            List<?> sensitiveList = sensitiveMetadata instanceof List<?> ? (List<?>) sensitiveMetadata : List.of();
+            List<Object> sanitizedList = new ArrayList<>();
+
+            for (int index = 0; index < valueList.size(); index++) {
+                Object sensitiveEntry = index < sensitiveList.size() ? sensitiveList.get(index) : null;
+                sanitizedList.add(sanitizeSensitiveValues(valueList.get(index), sensitiveEntry));
+            }
+
+            return sanitizedList;
+        }
+
+        return value;
     }
 }

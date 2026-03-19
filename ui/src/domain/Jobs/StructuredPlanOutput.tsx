@@ -26,6 +26,14 @@ type DiffRow = {
   hiddenCount?: number;
 };
 
+type CollectionEntry = {
+  identity: string;
+  value: unknown;
+  unknown: unknown;
+  beforeSensitive: unknown;
+  afterSensitive: unknown;
+};
+
 type ActionSummary = Record<ActionName, number>;
 
 const actionOrder: ActionName[] = ["create", "update", "replace", "delete", "read", "unknown"];
@@ -264,7 +272,7 @@ const renderValueBadge = (
   );
 };
 
-const countVisibleLeaves = (rows: DiffRow[]) => {
+const countVisibleLeaves = (rows: DiffRow[]): number => {
   return rows.reduce((total, row) => {
     if (!row.children?.length) {
       return total + 1;
@@ -299,6 +307,63 @@ const getCollectionItemLabel = (before: unknown, after: unknown, index: number) 
   }
 
   return baseLabel;
+};
+
+const getCollectionIdentity = (value: unknown, index: number) => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const identityKeys = ["name", "id", "key", "address", "resourceName", "resourceType"];
+
+  for (const identityKey of identityKeys) {
+    const rawValue = value[identityKey];
+    if (typeof rawValue !== "string") {
+      continue;
+    }
+
+    if (rawValue.trim().length === 0) {
+      continue;
+    }
+
+    return `${identityKey}:${rawValue}`;
+  }
+
+  return `index:${index}`;
+};
+
+const canMatchCollectionByIdentity = (values: unknown[]) => {
+  const identities = values
+    .map((value, index) => getCollectionIdentity(value, index))
+    .filter((identity): identity is string => identity !== null);
+
+  if (identities.length !== values.length) {
+    return false;
+  }
+
+  return new Set(identities).size === identities.length;
+};
+
+const buildCollectionEntries = (
+  values: unknown[],
+  unknownValues: unknown[],
+  beforeSensitiveValues: unknown[],
+  afterSensitiveValues: unknown[]
+) => {
+  const entries = new Map<string, CollectionEntry>();
+
+  values.forEach((value, index) => {
+    const identity = getCollectionIdentity(value, index) || `index:${index}`;
+    entries.set(identity, {
+      identity,
+      value,
+      unknown: unknownValues[index],
+      beforeSensitive: beforeSensitiveValues[index],
+      afterSensitive: afterSensitiveValues[index],
+    });
+  });
+
+  return entries;
 };
 
 const buildDiffRows = (
@@ -351,38 +416,93 @@ const buildDiffRows = (
 
     const rows: DiffRow[] = [];
     let hiddenCount = 0;
-    const maxLength = Math.max(beforeArray.length, afterArray.length);
 
-    for (let index = 0; index < maxLength; index += 1) {
-      const itemLabel = `[${index}]`;
-      const itemDisplayLabel = getCollectionItemLabel(beforeArray[index], afterArray[index], index);
-      const childDiff = buildDiffRows(
-        beforeArray[index],
-        afterArray[index],
-        unknownArray[index],
-        beforeSensitiveArray[index],
-        afterSensitiveArray[index],
-        itemLabel
-      );
+    const canUseIdentityMatching =
+      beforeArray.every((item) => isRecord(item)) &&
+      afterArray.every((item) => isRecord(item)) &&
+      canMatchCollectionByIdentity(beforeArray) &&
+      canMatchCollectionByIdentity(afterArray);
 
-      hiddenCount += childDiff.hiddenCount;
+    if (canUseIdentityMatching) {
+      const beforeEntries = buildCollectionEntries(beforeArray, [], beforeSensitiveArray, []);
+      const afterEntries = buildCollectionEntries(afterArray, unknownArray, [], afterSensitiveArray);
+      const orderedIdentities = Array.from(new Set([...beforeEntries.keys(), ...afterEntries.keys()]));
 
-      if (childDiff.rows.length === 0) {
-        continue;
-      }
+      orderedIdentities.forEach((identity, index) => {
+        const beforeEntry = beforeEntries.get(identity);
+        const afterEntry = afterEntries.get(identity);
+        const itemLabel = `[${index}]`;
+        const itemDisplayLabel = getCollectionItemLabel(beforeEntry?.value, afterEntry?.value, index);
+        const childDiff = buildDiffRows(
+          beforeEntry?.value,
+          afterEntry?.value,
+          afterEntry?.unknown,
+          beforeEntry?.beforeSensitive,
+          afterEntry?.afterSensitive,
+          itemLabel
+        );
 
-      if (childDiff.rows.length === 1 && !childDiff.rows[0].children?.length && childDiff.rows[0].label === itemLabel) {
-        rows.push(childDiff.rows[0]);
-        continue;
-      }
+        hiddenCount += childDiff.hiddenCount;
 
-      rows.push({
-        key: itemLabel,
-        label: itemDisplayLabel,
-        kind: "group",
-        children: childDiff.rows,
-        hiddenCount: childDiff.hiddenCount,
+        if (childDiff.rows.length === 0) {
+          return;
+        }
+
+        if (
+          childDiff.rows.length === 1 &&
+          !childDiff.rows[0].children?.length &&
+          childDiff.rows[0].label === itemLabel
+        ) {
+          rows.push(childDiff.rows[0]);
+          return;
+        }
+
+        rows.push({
+          key: identity,
+          label: itemDisplayLabel,
+          kind: "group",
+          children: childDiff.rows,
+          hiddenCount: childDiff.hiddenCount,
+        });
       });
+    } else {
+      const maxLength = Math.max(beforeArray.length, afterArray.length);
+
+      for (let index = 0; index < maxLength; index += 1) {
+        const itemLabel = `[${index}]`;
+        const itemDisplayLabel = getCollectionItemLabel(beforeArray[index], afterArray[index], index);
+        const childDiff = buildDiffRows(
+          beforeArray[index],
+          afterArray[index],
+          unknownArray[index],
+          beforeSensitiveArray[index],
+          afterSensitiveArray[index],
+          itemLabel
+        );
+
+        hiddenCount += childDiff.hiddenCount;
+
+        if (childDiff.rows.length === 0) {
+          continue;
+        }
+
+        if (
+          childDiff.rows.length === 1 &&
+          !childDiff.rows[0].children?.length &&
+          childDiff.rows[0].label === itemLabel
+        ) {
+          rows.push(childDiff.rows[0]);
+          continue;
+        }
+
+        rows.push({
+          key: itemLabel,
+          label: itemDisplayLabel,
+          kind: "group",
+          children: childDiff.rows,
+          hiddenCount: childDiff.hiddenCount,
+        });
+      }
     }
 
     return {

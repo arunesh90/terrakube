@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlanStructuredOutputServiceTest {
@@ -48,6 +49,67 @@ class PlanStructuredOutputServiceTest {
         assertEquals(List.of("delete", "create"), changes.get(0).get("actions"));
         assertEquals(Map.of("password", true), changes.get(0).get("beforeSensitive"));
         assertEquals(Map.of("password", true), changes.get(0).get("afterSensitive"));
+    }
+
+    @Test
+    void redactsSensitiveValuesFromStructuredPlanPayload() throws Exception {
+        String json = """
+                {
+                  "resource_changes": [
+                    {
+                      "address": "railway_variable_collection.img",
+                      "type": "railway_variable_collection",
+                      "name": "img",
+                      "change": {
+                        "actions": ["update"],
+                        "before": {
+                          "variables": [
+                            {
+                              "name": "CONSUMER_COUNT",
+                              "value": "0"
+                            }
+                          ]
+                        },
+                        "before_sensitive": {
+                          "variables": [
+                            {
+                              "value": true
+                            }
+                          ]
+                        },
+                        "after": {
+                          "variables": [
+                            {
+                              "name": "CONSUMER_COUNT",
+                              "value": "2"
+                            }
+                          ]
+                        },
+                        "after_sensitive": {
+                          "variables": [
+                            {
+                              "value": true
+                            }
+                          ]
+                        },
+                        "after_unknown": {}
+                      }
+                    }
+                  ]
+                }
+                """;
+
+        List<Map<String, Object>> changes = subject().buildChangesFromPlanJson(json);
+
+        Map<String, Object> before = (Map<String, Object>) changes.get(0).get("before");
+        Map<String, Object> after = (Map<String, Object>) changes.get(0).get("after");
+        List<Map<String, Object>> beforeVariables = (List<Map<String, Object>>) before.get("variables");
+        List<Map<String, Object>> afterVariables = (List<Map<String, Object>>) after.get("variables");
+
+        assertEquals("CONSUMER_COUNT", beforeVariables.get(0).get("name"));
+        assertNull(beforeVariables.get(0).get("value"));
+        assertEquals("CONSUMER_COUNT", afterVariables.get(0).get("name"));
+        assertNull(afterVariables.get(0).get("value"));
     }
 
     @Test
