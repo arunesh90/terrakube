@@ -123,6 +123,7 @@ public class TerraformExecutorServiceImpl implements TerraformExecutor {
         try {
             File terraformWorkingDir = getTerraformWorkingDir(terraformJob, workingDirectory);
             boolean executionPlan = false;
+            boolean planCommandExecuted = false;
             int exitCode = 0;
             boolean scriptBeforeSuccessPlan;
             boolean scriptAfterSuccessPlan;
@@ -148,6 +149,7 @@ public class TerraformExecutorServiceImpl implements TerraformExecutor {
             showTerraformMessage(terraformJob, "PLAN", planOutput);
 
             if (scriptBeforeSuccessPlan) {
+                planCommandExecuted = true;
                 if (isDestroy) {
                     log.warn("Executor running a plan to destroy resources...");
                     exitCode = terraformClient.planDestroyDetailExitCode(
@@ -160,11 +162,13 @@ public class TerraformExecutorServiceImpl implements TerraformExecutor {
                             planOutput,
                             null).get();
                 }
+            } else {
+                executeOnFailureOperationScripts(terraformJob, terraformWorkingDir, planOutput);
             }
 
-            if (exitCode != 1 || terraformJob.isIgnoreError()) {
+            if (planCommandExecuted && (exitCode != 1 || terraformJob.isIgnoreError())) {
                 executionPlan = true;
-            } else {
+            } else if (planCommandExecuted) {
                 executeOnFailureOperationScripts(terraformJob, terraformWorkingDir, planOutput);
             }
 

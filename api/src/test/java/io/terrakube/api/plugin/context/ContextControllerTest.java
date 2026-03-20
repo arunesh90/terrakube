@@ -35,11 +35,11 @@ class ContextControllerTest {
     }
 
     @Test
-    void rejectsContextWritesForNonRunningJobs() throws IOException {
+    void rejectsContextWritesForTerminalFailureJobs() throws IOException {
         StorageTypeService storageTypeService = Mockito.mock(StorageTypeService.class);
         JobRepository jobRepository = Mockito.mock(JobRepository.class);
         Job job = Mockito.mock(Job.class);
-        when(job.getStatus()).thenReturn(JobStatus.completed);
+        when(job.getStatus()).thenReturn(JobStatus.cancelled);
         when(jobRepository.findById(1)).thenReturn(Optional.of(job));
         ContextController controller = new ContextController(storageTypeService, jobRepository, new ObjectMapper());
 
@@ -50,11 +50,28 @@ class ContextControllerTest {
     }
 
     @Test
-    void savesContextForRunningJobs() throws IOException {
+    void savesContextForQueuedJobs() throws IOException {
         StorageTypeService storageTypeService = Mockito.mock(StorageTypeService.class);
         JobRepository jobRepository = Mockito.mock(JobRepository.class);
         Job job = Mockito.mock(Job.class);
-        when(job.getStatus()).thenReturn(JobStatus.running);
+        when(job.getStatus()).thenReturn(JobStatus.queue);
+        when(jobRepository.findById(1)).thenReturn(Optional.of(job));
+        when(storageTypeService.saveContext(1, "{\"planStructuredOutput\":{}}"))
+                .thenReturn("{\"planStructuredOutput\":{}}");
+        ContextController controller = new ContextController(storageTypeService, jobRepository, new ObjectMapper());
+
+        ResponseEntity<String> response = controller.saveContext(1, "{\"planStructuredOutput\":{}}");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("{\"planStructuredOutput\":{}}", response.getBody());
+    }
+
+    @Test
+    void savesContextForCompletedJobs() throws IOException {
+        StorageTypeService storageTypeService = Mockito.mock(StorageTypeService.class);
+        JobRepository jobRepository = Mockito.mock(JobRepository.class);
+        Job job = Mockito.mock(Job.class);
+        when(job.getStatus()).thenReturn(JobStatus.completed);
         when(jobRepository.findById(1)).thenReturn(Optional.of(job));
         when(storageTypeService.saveContext(1, "{\"planStructuredOutput\":{}}"))
                 .thenReturn("{\"planStructuredOutput\":{}}");
@@ -126,7 +143,7 @@ class ContextControllerTest {
         StorageTypeService storageTypeService = Mockito.mock(StorageTypeService.class);
         JobRepository jobRepository = Mockito.mock(JobRepository.class);
         Job job = Mockito.mock(Job.class);
-        when(job.getStatus()).thenReturn(JobStatus.running);
+        when(job.getStatus()).thenReturn(JobStatus.queue);
         when(jobRepository.findById(1)).thenReturn(Optional.of(job));
         when(storageTypeService.saveContext(Mockito.eq(1), Mockito.anyString()))
                 .thenAnswer(invocation -> invocation.getArgument(1));

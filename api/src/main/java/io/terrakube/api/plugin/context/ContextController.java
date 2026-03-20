@@ -19,13 +19,24 @@ import io.terrakube.api.rs.job.Job;
 import io.terrakube.api.rs.job.JobStatus;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @RestController
 @RequestMapping("/context/v1")
 @AllArgsConstructor
 public class ContextController {
+    private static final Set<JobStatus> CONTEXT_WRITABLE_JOB_STATUSES = EnumSet.of(
+            JobStatus.pending,
+            JobStatus.waitingApproval,
+            JobStatus.approved,
+            JobStatus.queue,
+            JobStatus.running,
+            JobStatus.completed,
+            JobStatus.noChanges);
+
     private final StorageTypeService storageTypeService;
 
     private final JobRepository jobRepository;
@@ -59,7 +70,7 @@ public class ContextController {
         }
 
         Job job = jobOptional.get();
-        if (!JobStatus.running.equals(job.getStatus())) {
+        if (!CONTEXT_WRITABLE_JOB_STATUSES.contains(job.getStatus())) {
             log.warn("Cannot save context for job {} with status {}", jobId, job.getStatus());
             return new ResponseEntity<>("{}", HttpStatus.CONFLICT);
         }
