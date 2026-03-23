@@ -260,12 +260,6 @@ export const DetailsJob = ({ jobId }: Props) => {
     return 0;
   };
 
-  useEffect(() => {
-    setLoading(true);
-    abortJobRequests();
-    abortContextRequests();
-  }, [jobId, abortContextRequests, abortJobRequests]);
-
   const loadJob = useCallback(async () => {
     const requestId = ++jobRequestRef.current;
     const signal = getJobSignal();
@@ -373,6 +367,19 @@ export const DetailsJob = ({ jobId }: Props) => {
     }
   }, [loadContext, loadJob]);
 
+  useEffect(() => {
+    setLoading(true);
+    abortJobRequests();
+    abortContextRequests();
+
+    if (!jobId) {
+      setLoading(false);
+      return;
+    }
+
+    void refreshJobDetails();
+  }, [abortContextRequests, abortJobRequests, jobId, refreshJobDetails]);
+
   usePolling(
     () => {
       void refreshJobDetails();
@@ -380,7 +387,7 @@ export const DetailsJob = ({ jobId }: Props) => {
     {
       interval: 5000,
       enabled: Boolean(jobId) && !isTerminalJobStatus(job?.data?.attributes.status),
-      immediate: true,
+      immediate: false,
     }
   );
   return (
