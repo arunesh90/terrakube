@@ -1,5 +1,5 @@
 import { JobStatus } from "../../types";
-import { shouldStepBeExpandedByDefault } from "../stepExpansion";
+import { shouldStepBeCollapsible, shouldStepBeExpandedByDefault } from "../stepExpansion";
 
 const buildStep = (name: string, status: JobStatus) => {
   return {
@@ -9,18 +9,25 @@ const buildStep = (name: string, status: JobStatus) => {
 };
 
 describe("shouldStepBeExpandedByDefault", () => {
-  it("keeps manual approval pending collapsed while approval is still pending", () => {
+  it("renders pending approval steps as non-collapsible rows", () => {
+    expect(shouldStepBeCollapsible(buildStep("manual approval pending", JobStatus.WaitingApproval))).toBe(false);
+    expect(shouldStepBeCollapsible(buildStep("Approve Plan from Terraform CLI", JobStatus.Pending))).toBe(false);
     expect(shouldStepBeExpandedByDefault(buildStep("manual approval pending", JobStatus.WaitingApproval))).toBe(false);
   });
 
   it("keeps apply pending collapsed until apply starts", () => {
-    expect(shouldStepBeExpandedByDefault(buildStep("apply pending", JobStatus.Pending))).toBe(false);
-    expect(shouldStepBeExpandedByDefault(buildStep("apply pending", JobStatus.NotExecuted))).toBe(false);
-    expect(shouldStepBeExpandedByDefault(buildStep("apply pending", JobStatus.Running))).toBe(true);
+    expect(shouldStepBeExpandedByDefault(buildStep("Apply", JobStatus.Pending))).toBe(false);
+    expect(shouldStepBeExpandedByDefault(buildStep("Terraform Apply from Terraform CLI", JobStatus.NotExecuted))).toBe(
+      false
+    );
+    expect(shouldStepBeExpandedByDefault(buildStep("Apply", JobStatus.Running))).toBe(true);
   });
 
-  it("expands once approval has been given", () => {
-    expect(shouldStepBeExpandedByDefault(buildStep("manual approval pending", JobStatus.Approved))).toBe(true);
+  it("keeps approval steps collapsed by default even after they can be opened", () => {
+    expect(shouldStepBeCollapsible(buildStep("Approve Plan from Terraform CLI", JobStatus.Completed))).toBe(true);
+    expect(shouldStepBeExpandedByDefault(buildStep("Approve Plan from Terraform CLI", JobStatus.Completed))).toBe(
+      false
+    );
   });
 
   it("does not affect other step names", () => {

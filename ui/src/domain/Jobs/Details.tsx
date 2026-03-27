@@ -21,7 +21,7 @@ import { useAbortController, usePolling } from "../../hooks";
 import { Job, JobStep } from "../types";
 import { TerminalOutput } from "./TerminalOutput";
 import { getJobOutputRequestUrl, getPublicApiOrigin, isTerrakubeApiUrl } from "./outputUrl";
-import { shouldStepBeExpandedByDefault } from "./stepExpansion";
+import { shouldStepBeCollapsible, shouldStepBeExpandedByDefault } from "./stepExpansion";
 import { StructuredPlanOutput } from "./StructuredPlanOutput";
 import { StructuredPlanOutputByStep, normalizeStructuredPlanOutput, normalizeUITemplates } from "./structuredPlan";
 
@@ -145,6 +145,17 @@ export const DetailsJob = ({ jobId }: Props) => {
         </div>
         {structuredContent}
       </>
+    );
+  };
+
+  const renderStepLabel = (item: JobStep) => {
+    return (
+      <span>
+        {getIconStatus(item)}
+        <h3 style={{ display: "inline" }}>
+          &nbsp; {item.name} {item.status}
+        </h3>
+      </span>
     );
   };
 
@@ -490,27 +501,33 @@ export const DetailsJob = ({ jobId }: Props) => {
             ]}
           />
           {steps.length > 0 ? (
-            steps.map((item) => (
-              <Collapse
-                key={`${item.id}-${item.status}`}
-                style={{ width: "100%" }}
-                defaultActiveKey={shouldStepBeExpandedByDefault(item) ? ["2"] : []}
-                items={[
-                  {
-                    key: "2",
-                    label: (
-                      <span>
-                        {getIconStatus(item)}
-                        <h3 style={{ display: "inline" }}>
-                          &nbsp; {item.name} {item.status}
-                        </h3>
-                      </span>
-                    ),
-                    children: renderStepContent(item),
-                  },
-                ]}
-              />
-            ))
+            steps.map((item) => {
+              const stepKey = `${item.id}-${item.status}`;
+              const stepLabel = renderStepLabel(item);
+
+              if (!shouldStepBeCollapsible(item)) {
+                return (
+                  <Card key={stepKey} size="small" style={{ width: "100%" }}>
+                    {stepLabel}
+                  </Card>
+                );
+              }
+
+              return (
+                <Collapse
+                  key={stepKey}
+                  style={{ width: "100%" }}
+                  defaultActiveKey={shouldStepBeExpandedByDefault(item) ? ["2"] : []}
+                  items={[
+                    {
+                      key: "2",
+                      label: stepLabel,
+                      children: renderStepContent(item),
+                    },
+                  ]}
+                />
+              );
+            })
           ) : (
             <span />
           )}
