@@ -21,6 +21,7 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -87,5 +88,24 @@ class TerraformExecutorServiceImplTest {
         assertFalse(result.isSuccessfulExecution());
         assertEquals(1, result.getExitCode());
         verify(terraformClient, never()).planDetailExitCode(any(TerraformProcessData.class), any(Consumer.class), any());
+    }
+
+    @Test
+    void planPublishesTerraformInitStderrToJobOutput() throws Exception {
+        TerraformExecutorServiceImpl subject = subject();
+        TerraformJob terraformJob = createJob();
+
+        when(terraformClient.init(
+                any(TerraformProcessData.class),
+                any(Consumer.class),
+                any())).thenAnswer(invocation -> {
+                    Consumer<String> errorOutput = invocation.getArgument(2);
+                    errorOutput.accept("init stderr");
+                    return CompletableFuture.completedFuture(false);
+                });
+
+        ExecutorJobResult result = subject.plan(terraformJob, tempDir.toFile(), false);
+
+        assertTrue(result.getOutputLog().contains("init stderr"));
     }
 }

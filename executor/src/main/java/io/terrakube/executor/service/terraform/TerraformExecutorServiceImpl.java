@@ -459,7 +459,7 @@ public class TerraformExecutorServiceImpl implements TerraformExecutor {
             return false;
         }
 
-        return executeTerraformInit(terraformJob, workingDirectory, output, null);
+        return executeTerraformInit(terraformJob, workingDirectory, output, output);
     }
 
     private boolean executeTerraformInit(TerraformJob terraformJob, File workingDirectory, Consumer<String> output,
