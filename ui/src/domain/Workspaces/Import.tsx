@@ -113,6 +113,43 @@ type SensitiveVariableDraft = SensitiveVariablePreview & {
 };
 
 const NONE_COLLECTION_VALUE = "__none__";
+const WORKSPACE_IMPORT_PREVIEW_CONCURRENCY = 4;
+
+const mapWithConcurrency = async <T, TResult>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<TResult>
+): Promise<TResult[]> => {
+  if (items.length === 0) {
+    return [];
+  }
+
+  const workerCount = Math.min(Math.max(concurrency, 1), items.length);
+  const results = new Array<TResult>(items.length);
+  let nextIndex = 0;
+
+  const runWorker = async () => {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+
+      if (currentIndex >= items.length) {
+        return;
+      }
+
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  };
+
+  const workers: Promise<void>[] = [];
+
+  for (let workerIndex = 0; workerIndex < workerCount; workerIndex += 1) {
+    workers.push(runWorker());
+  }
+
+  await Promise.all(workers);
+  return results;
+};
 
 export const ImportWorkspace = () => {
   const {
@@ -131,9 +168,9 @@ export const ImportWorkspace = () => {
   const [importProgress, setImportProgress] = useState<ImportProgressItem[]>([]);
   const [availableCollections, setAvailableCollections] = useState<CollectionOption[]>([]);
   const [workspaceMappings, setWorkspaceMappings] = useState<Record<string, WorkspaceMappingRow[]>>({});
-  const [workspaceSensitiveVariables, setWorkspaceSensitiveVariables] = useState<Record<string, SensitiveVariableDraft[]>>(
-    {}
-  );
+  const [workspaceSensitiveVariables, setWorkspaceSensitiveVariables] = useState<
+    Record<string, SensitiveVariableDraft[]>
+  >({});
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
   const [mappingDataLoading, setMappingDataLoading] = useState(false);
   const [mappingTransitionLoading, setMappingTransitionLoading] = useState(false);
@@ -431,8 +468,10 @@ export const ImportWorkspace = () => {
   };
 
   const loadWorkspaceImportData = async (importerBaseUrl: string): Promise<WorkspaceMappingLoadResult> => {
-    const results = await Promise.all(
-      selectedWorkspaces.map(async (workspace) => {
+    const results = await mapWithConcurrency(
+      selectedWorkspaces,
+      WORKSPACE_IMPORT_PREVIEW_CONCURRENCY,
+      async (workspace) => {
         let mappingRows: WorkspaceMappingRow[] = [];
         let sensitiveVariables: SensitiveVariableDraft[] = [];
         let failedCollections = false;
@@ -458,7 +497,7 @@ export const ImportWorkspace = () => {
           failedCollections,
           failedSensitiveVariables,
         };
-      })
+      }
     );
 
     const mappings: Record<string, WorkspaceMappingRow[]> = {};
@@ -542,12 +581,8 @@ export const ImportWorkspace = () => {
     try {
       const importerBaseUrl = getImporterBaseUrl();
       await loadAvailableCollections();
-      const {
-        mappings,
-        sensitiveVariables,
-        failedCollectionWorkspaceNames,
-        failedSensitiveVariableWorkspaceNames,
-      } = await loadWorkspaceImportData(importerBaseUrl);
+      const { mappings, sensitiveVariables, failedCollectionWorkspaceNames, failedSensitiveVariableWorkspaceNames } =
+        await loadWorkspaceImportData(importerBaseUrl);
 
       if (failedSensitiveVariableWorkspaceNames.length > 0) {
         message.error(
@@ -1306,11 +1341,7 @@ export const ImportWorkspace = () => {
                 </Typography.Text>
               </Card>
               {currentSensitiveVariableRows.length === 0 && (
-                <Alert
-                  type="info"
-                  showIcon
-                  message="No sensitive variables need attention for this workspace."
-                />
+                <Alert type="info" showIcon message="No sensitive variables need attention for this workspace." />
               )}
               {currentSensitiveVariableRows.map((variable) => (
                 <Card
@@ -1332,7 +1363,15 @@ export const ImportWorkspace = () => {
                   >
                     <div>
                       <Typography.Text type="secondary">Sensitive variable</Typography.Text>
-                      <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <div
+                        style={{
+                          marginTop: "6px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                        }}
+                      >
                         <Typography.Text strong>{variable.key}</Typography.Text>
                         <Typography.Text type="secondary">
                           {getVariableCategoryLabel(variable.category)}
@@ -1362,7 +1401,12 @@ export const ImportWorkspace = () => {
                         />
                       </div>
                     </div>
-                    <Button danger type="text" icon={<DeleteOutlined />} onClick={() => handleRemoveSensitiveVariable(variable.id)}>
+                    <Button
+                      danger
+                      type="text"
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleRemoveSensitiveVariable(variable.id)}
+                    >
                       Discard
                     </Button>
                   </div>

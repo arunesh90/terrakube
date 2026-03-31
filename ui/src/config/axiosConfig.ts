@@ -75,6 +75,13 @@ export function getErrorMessage(error: any): string {
     if (error.response?.status === 403) {
       return "You do not have the required permissions to perform this action.";
     }
+    if (error.response?.status === 429) {
+      if (typeof error.response.data === "string" && error.response.data.trim() !== "") {
+        return error.response.data;
+      }
+
+      return "The upstream API rate limit was reached. Please wait a moment and try again.";
+    }
     if (error.response?.status === 404) {
       return "The requested resource could not be found.";
     }

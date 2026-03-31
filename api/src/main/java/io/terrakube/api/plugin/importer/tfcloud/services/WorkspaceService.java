@@ -60,6 +60,10 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class WorkspaceService {
 
+    private static final int MAX_RATE_LIMIT_ATTEMPTS = 3;
+    private static final long INITIAL_RATE_LIMIT_BACKOFF_MILLIS = 1000L;
+    private static final long MAX_RATE_LIMIT_BACKOFF_MILLIS = 5000L;
+
     private record VariableImportSummary(int importedCount, int incompleteSensitiveCount, int discardedSensitiveCount) {
     }
 
@@ -114,8 +118,53 @@ public class WorkspaceService {
         headers.setContentType(MediaType.valueOf("application/vnd.api+json"));
         HttpEntity<String> entity = new HttpEntity<>(headers);
 
-        ResponseEntity<T> response = restTemplate.exchange(url, HttpMethod.GET, entity, responseType);
-        return response.getBody();
+        for (int attempt = 1; attempt <= MAX_RATE_LIMIT_ATTEMPTS; attempt++) {
+            try {
+                ResponseEntity<T> response = restTemplate.exchange(url, HttpMethod.GET, entity, responseType);
+                return response.getBody();
+            } catch (HttpClientErrorException.TooManyRequests exception) {
+                if (attempt == MAX_RATE_LIMIT_ATTEMPTS) {
+                    throw exception;
+                }
+
+                long delayMillis = getRateLimitRetryDelayMillis(exception, attempt);
+                log.warn(
+                        "Terraform Cloud rate limit reached for {}. Retrying in {} ms (attempt {} of {}).",
+                        url,
+                        delayMillis,
+                        attempt + 1,
+                        MAX_RATE_LIMIT_ATTEMPTS);
+                sleepBeforeRetry(delayMillis);
+            }
+        }
+
+        throw new IllegalStateException("Terraform Cloud request retry loop completed without a response.");
+    }
+
+    private long getRateLimitRetryDelayMillis(HttpClientErrorException.TooManyRequests exception, int attempt) {
+        HttpHeaders responseHeaders = exception.getResponseHeaders();
+        if (responseHeaders != null) {
+            String retryAfter = responseHeaders.getFirst(HttpHeaders.RETRY_AFTER);
+            if (StringUtils.hasText(retryAfter)) {
+                try {
+                    return Math.max(Long.parseLong(retryAfter.trim()), 0L) * 1000L;
+                } catch (NumberFormatException parseException) {
+                    log.debug("Unable to parse Retry-After header value: {}", retryAfter);
+                }
+            }
+        }
+
+        long calculatedDelay = INITIAL_RATE_LIMIT_BACKOFF_MILLIS * (1L << (attempt - 1));
+        return Math.min(calculatedDelay, MAX_RATE_LIMIT_BACKOFF_MILLIS);
+    }
+
+    private void sleepBeforeRetry(long delayMillis) {
+        try {
+            Thread.sleep(delayMillis);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while retrying a Terraform Cloud request.", interruptedException);
+        }
     }
 
     public List<WorkspaceImport.WorkspaceData> getWorkspaces(String apiToken, String apiUrl, String organization) {

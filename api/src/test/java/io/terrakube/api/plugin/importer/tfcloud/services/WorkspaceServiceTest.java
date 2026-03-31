@@ -14,6 +14,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import io.terrakube.api.plugin.importer.tfcloud.ImportedSensitiveVariable;
 import io.terrakube.api.plugin.importer.tfcloud.VarsetSummary;
@@ -42,6 +43,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -440,6 +443,65 @@ class WorkspaceServiceTest {
         assertThat(previews)
                 .extracting("id", "key", "description", "category")
                 .containsExactly(tuple("var-2", "sensitive_token", "masked", "env"));
+
+        server.verify();
+    }
+
+    @Test
+    void shouldRetryWorkspaceVariableRequestsWhenTerraformCloudRateLimits() {
+        RestTemplate restTemplate = new RestTemplate();
+        ReflectionTestUtils.setField(workspaceService, "restTemplate", restTemplate);
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        server.expect(requestTo("https://app.terraform.io/api/v2/workspaces/ws-123/vars"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Bearer token"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .header(HttpHeaders.RETRY_AFTER, "0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("""
+                                {
+                                  "errors": [
+                                    {
+                                      "status": "429",
+                                      "title": "Too Many Requests"
+                                    }
+                                  ]
+                                }
+                                """));
+
+        server.expect(requestTo("https://app.terraform.io/api/v2/workspaces/ws-123/vars"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Bearer token"))
+                .andRespond(withSuccess(
+                        """
+                        {
+                          "data": [
+                            {
+                              "id": "var-2",
+                              "type": "vars",
+                              "attributes": {
+                                "key": "sensitive_token",
+                                "value": null,
+                                "description": "masked",
+                                "sensitive": true,
+                                "category": "env",
+                                "hcl": false
+                              }
+                            }
+                          ]
+                        }
+                        """,
+                        MediaType.APPLICATION_JSON));
+
+        var variables = workspaceService.getVariables(
+                "token",
+                "https://app.terraform.io/api/v2",
+                "ws-123");
+
+        assertThat(variables)
+                .extracting(VariableData::getId)
+                .containsExactly("var-2");
 
         server.verify();
     }
