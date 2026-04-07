@@ -4,6 +4,7 @@ import {
   Col,
   Flex,
   Form,
+  Grid,
   Input,
   Popconfirm,
   Row,
@@ -61,6 +62,8 @@ type Props = {
 };
 
 export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageWorkspace }: Props) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const [waiting, setWaiting] = useState(true);
   const [webhookEnabled, setWebhookEnabled] = useState(false);
   const [recordIndex, setRecordIndex] = useState(1);
@@ -289,13 +292,14 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
       title: "Priority",
       dataIndex: "priority",
       key: "priority",
-      width: "5%",
+      width: isMobile ? 80 : 90,
       render: (_: string, record: any, index: number) => (
         <Input
           placeholder="1"
           name="priority"
           value={record.priority}
           status={record.status}
+          style={{ width: "100%" }}
           onChange={(e) => handleEventChange(index, record.key, e.target.name, e.target.value)}
         ></Input>
       ),
@@ -304,12 +308,13 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
       title: "Event",
       dataIndex: "event",
       key: "event",
-      width: "8%",
+      width: isMobile ? 160 : 180,
       render: (_: string, record: any, index: number) => (
         <Select
           placeholder="Select an event"
           value={record.event}
           status={record.eventStatus}
+          style={{ width: "100%" }}
           onChange={(e) => handleEventChange(index, record.key, "event", e)}
         >
           <Select.Option value="push">Push</Select.Option>
@@ -326,7 +331,7 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
       ),
       dataIndex: "prWorkflowEnabled",
       key: "prWorkflowEnabled",
-      width: "8%",
+      width: isMobile ? 110 : 120,
       render: (_: string, record: any, index: number) =>
         record.event === "pull_request" ? (
           <Switch
@@ -340,12 +345,14 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
       title: "Branch/release",
       dataIndex: "branch",
       key: "branch",
+      width: isMobile ? 220 : 240,
       render: (_: string, record: any, index: number) => (
         <Input
           placeholder="Regex list to match branch or release names"
           name="branch"
           status={record.branchStatus}
           value={record.branch}
+          style={{ width: "100%" }}
           onChange={(e) => handleEventChange(index, record.key, e.target.name, e.target.value)}
         ></Input>
       ),
@@ -354,11 +361,12 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
       title: "Path Type",
       dataIndex: "pathType",
       key: "pathType",
-      width: "10%",
+      width: isMobile ? 140 : 160,
       render: (_: string, record: any, index: number) => (
         <Select
           placeholder="Select a path type"
           value={record.pathType || WebhookEventPathType.PATTERN}
+          style={{ width: "100%" }}
           onChange={(value) => handleEventChange(index, record.key, "pathType", value)}
         >
           <Select.Option value={WebhookEventPathType.PATTERN}>Pattern</Select.Option>
@@ -370,7 +378,7 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
       title: "File",
       dataIndex: "file",
       key: "file",
-      width: "35%",
+      width: isMobile ? 320 : 420,
       render: (_: string, record: any, index: number) => (
         <Input
           placeholder={
@@ -381,6 +389,7 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
           name="file"
           value={record.file}
           status={record.fileStatus}
+          style={{ width: "100%", minWidth: isMobile ? 320 : 420 }}
           onChange={(e) => handleEventChange(index, record.key, e.target.name, e.target.value)}
         ></Input>
       ),
@@ -389,12 +398,13 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
       title: "Template",
       dataIndex: "template",
       key: "template",
-      width: "12%",
+      width: isMobile ? 180 : 220,
       render: (_: string, record: any, index: number) => (
         <Select
           placeholder="Select a template"
           value={record.template}
           status={record.templateStatus}
+          style={{ width: "100%" }}
           onChange={(e) => handleEventChange(index, record.key, "template", e)}
         >
           {orgTemplates.map(function (template) {
@@ -406,7 +416,7 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
     {
       title: "Action",
       key: "action",
-      width: "8%",
+      width: isMobile ? 90 : 110,
       render: (_: string, record: any) => (
         <Space size="middle">
           <Popconfirm
@@ -425,7 +435,7 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
             cancelText="No"
             disabled={!manageWorkspace}
           >
-            <Button type="link" size="small">
+            <Button type="link" size={isMobile ? "middle" : "small"}>
               Delete
             </Button>
           </Popconfirm>
@@ -459,12 +469,12 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
             <Switch onChange={handleWebhookClick} checked={webhookEnabled} disabled={!manageWorkspace} />
           </Form.Item>
           <Row hidden={!webhookEnabled}>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.Item label="ID" hidden={!webhookEnabled}>
                 {webhookId}
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} md={12}>
               <Form.Item hidden={!webhookEnabled} label={renderVCSLogo(vcsProvider!)}>
                 {remoteHookId}
               </Form.Item>
@@ -472,12 +482,20 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
           </Row>
           <Row hidden={!webhookEnabled}>
             <Col span={24}>
-              <Table tableLayout="auto" columns={columns} dataSource={webhookEvents} />
+              <Table
+                tableLayout="fixed"
+                columns={columns}
+                dataSource={webhookEvents}
+                pagination={false}
+                size={isMobile ? "small" : "middle"}
+                scroll={{ x: "max-content" }}
+                style={{ width: "100%" }}
+              />
             </Col>
           </Row>
           <Form.Item>
             <Flex justify="flex-start" align="flex-start">
-              <Button type="primary" htmlType="submit" disabled={!manageWorkspace}>
+              <Button type="primary" htmlType="submit" disabled={!manageWorkspace} block={isMobile}>
                 Save webhooks
               </Button>
             </Flex>
