@@ -692,7 +692,9 @@ const buildDiffRows = (
     };
   }
 
-  const treatAsLeaf = isPrimitiveValue(before) || isPrimitiveValue(after);
+  // Recurse into complex creates/deletes so the UI mirrors Terraform's
+  // per-attribute rendering instead of collapsing the whole object.
+  const treatAsLeaf = isPrimitiveValue(before) && isPrimitiveValue(after);
   if (treatAsLeaf) {
     if (areValuesEqual(before, after)) {
       if (showUnchangedChildren) {

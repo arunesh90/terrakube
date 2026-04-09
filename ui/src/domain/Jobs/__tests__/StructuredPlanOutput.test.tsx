@@ -228,6 +228,54 @@ describe("StructuredPlanOutput", () => {
     expect(screen.getByText("1 visible change")).toBeInTheDocument();
   });
 
+  it("renders created resources as nested attribute diffs instead of a single resource summary row", () => {
+    render(
+      <StructuredPlanOutput
+        changes={[
+          {
+            address: "cloudflare_custom_hostname.example",
+            action: "create",
+            actions: ["create"],
+            after: {
+              custom_origin_server: "origin.example.com",
+              hostname: "example.com",
+              id: null,
+              ssl: {
+                certificate_authority: null,
+                method: "http",
+                settings: {
+                  min_tls_version: "1.2",
+                },
+              },
+              wait_for_ssl_pending_validation: false,
+            },
+            afterUnknown: {
+              id: true,
+              ssl: {
+                certificate_authority: true,
+              },
+            },
+          },
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /cloudflare_custom_hostname\.example/i }));
+
+    expect(screen.getByText("custom_origin_server")).toBeInTheDocument();
+    expect(screen.getByText("hostname")).toBeInTheDocument();
+    expect(screen.getByText("ssl")).toBeInTheDocument();
+    expect(screen.getByText("method")).toBeInTheDocument();
+    expect(screen.getByText("settings")).toBeInTheDocument();
+    expect(screen.getByText("min_tls_version")).toBeInTheDocument();
+    expect(screen.getByText('"origin.example.com"')).toBeInTheDocument();
+    expect(screen.getByText('"example.com"')).toBeInTheDocument();
+    expect(screen.getByText('"http"')).toBeInTheDocument();
+    expect(screen.getByText('"1.2"')).toBeInTheDocument();
+    expect(screen.getAllByText("known after apply")).toHaveLength(2);
+    expect(screen.queryByText(/^resource$/)).not.toBeInTheDocument();
+  });
+
   it("hides unchanged sensitive attributes when they only carry sensitivity metadata", () => {
     render(
       <StructuredPlanOutput
