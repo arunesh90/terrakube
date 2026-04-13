@@ -493,7 +493,7 @@ export const WorkspaceWebhook = ({ workspace, vcsProvider, orgTemplates, manageW
             <Switch onChange={handleWebhookClick} checked={webhookEnabled} disabled={!manageWorkspace} />
           </Form.Item>
           <Form.Item
-            label="For pull requests, create preview plans against the target branch instead of source?"
+            label="Target branch for PR previews"
             hidden={vcsProvider === undefined || !webhookEnabled}
             tooltip={{
               title:
