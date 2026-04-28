@@ -20,4 +20,9 @@ describe("getVcsNameFromUrl", () => {
     const result = getVcsNameFromUrl("https://bitbucket.org/org-name/repo-name");
     expect(result).toBe("org-name/repo-name");
   });
+
+  test("invalid url returns unknown", async () => {
+    const result = getVcsNameFromUrl("empty");
+    expect(result).toBe("Unknown");
+  });
 });

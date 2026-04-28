@@ -30,4 +30,9 @@ describe("getVcsTypeFromUrl", () => {
     const result = getVcsTypeFromUrl("https://gitlab.com/org-name/project-name/repo-name");
     expect(result).toBe(VcsType.GITLAB);
   });
+
+  test("invalid url returns unknown", async () => {
+    const result = getVcsTypeFromUrl("empty");
+    expect(result).toBe(VcsType.UNKNOWN);
+  });
 });

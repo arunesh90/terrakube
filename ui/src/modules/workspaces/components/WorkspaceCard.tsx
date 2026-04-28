@@ -11,12 +11,16 @@ import WorkspaceStatusTag from "@/modules/workspaces/components/WorkspaceStatusT
 import WorkspaceCardTags from "@/modules/workspaces/components/WorkspaceCardTags";
 import { TagModel } from "@/modules/organizations/types";
 import IacTypeLogo from "./IacTypeLogo";
+import isValidVcsUrl from "@/modules/workspaces/utils/isValidVcsUrl";
 
 type Props = {
   item: WorkspaceListItem;
   tags: TagModel[];
 };
 export default function WorkspaceCard({ item, tags }: Props) {
+  const vcsSource = item.normalizedSource?.trim();
+  const hasVcsSource = item.branch !== "remote-content" && isValidVcsUrl(vcsSource);
+
   return (
     <Card hoverable style={{ width: "100%" }}>
       <Space style={{ width: "100%" }} orientation="vertical">
@@ -51,16 +55,11 @@ export default function WorkspaceCard({ item, tags }: Props) {
             <IacTypeLogo type={item.iacType} />
             <Typography.Text>{item.terraformVersion}</Typography.Text>
           </Space>
-          {item.branch !== "remote-content" && item.normalizedSource ? (
+          {hasVcsSource ? (
             <Space>
-              <VcsLogo type={getVcsTypeFromUrl(item.normalizedSource)} />
-              <Typography.Link
-                href={item.normalizedSource}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {item.normalizedSource ? getVcsNameFromUrl(item.normalizedSource) : "Unknown"}
+              <VcsLogo type={getVcsTypeFromUrl(vcsSource)} />
+              <Typography.Link href={vcsSource} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                {getVcsNameFromUrl(vcsSource)}
               </Typography.Link>
             </Space>
           ) : (

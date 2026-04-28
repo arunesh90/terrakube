@@ -6,9 +6,16 @@ export default function (normalizedSource: string): VcsType {
   const devOpsEndpints = ["visualstudio.com", "dev.azure.com"];
   const gitlabEndpoints = ["gitlab.com"];
   const bitbucketEndpoints = ["bitbucket.org"];
-  // Let's just be safe in case the wrong url was passed
-  const fixedUrl = formatSshUrl(normalizedSource);
-  const hostname = new URL(fixedUrl).hostname;
+  let hostname = "";
+
+  try {
+    // Let's just be safe in case the wrong url was passed
+    const fixedUrl = formatSshUrl(normalizedSource);
+    hostname = new URL(fixedUrl).hostname;
+  } catch {
+    return VcsType.UNKNOWN;
+  }
+
   // ghe.com uses subdomain
   if (githubEndpoints.includes(hostname) || githubEndpoints.some((h) => hostname.endsWith(h))) return VcsType.GITHUB;
   // visualstudio.com uses subdomin
